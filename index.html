@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Klay Pharmacy — Daily Management Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js" crossorigin></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" crossorigin></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+.kd-root {
+  --ink: #241B36;
+  --paper: #F2F4F1;
+  --card: #FFFFFF;
+  --line: #DDD7E2;
+  --brand: #6C3FA6;
+  --brand-dark: #562F86;
+  --brand-soft: #EFE7F7;
+  --teal: #2F6F5E;
+  --amber: #C98A2C;
+  --brick: #A63D2F;
+  --ink-soft: #6A6076;
+  font-family: 'IBM Plex Sans', sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  min-height: 100vh;
+  padding-bottom: 3rem;
+}
+.kd-mono { font-family: 'IBM Plex Mono', monospace; }
+
+.kd-header {
+  background: var(--brand);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1.5rem;
+  position: sticky; top: 0; z-index: 20;
+  flex-wrap: wrap; gap: 0.6rem;
+}
+.kd-brand { display: flex; align-items: center; gap: 0.7rem; }
+.kd-brand-mark {
+  font-family: 'Source Serif 4', serif; font-weight: 700; font-size: 1.3rem;
+  width: 2.1rem; height: 2.1rem; border: 1.5px solid rgba(255,255,255,0.5);
+  border-radius: 4px; display: flex; align-items: center; justify-content: center;
+}
+.kd-brand-title { font-family: 'Source Serif 4', serif; font-weight: 700; font-size: 1.05rem; line-height: 1.1; }
+.kd-brand-sub { font-size: 0.72rem; color: #E3D6F2; letter-spacing: 0.02em; }
+
+.kd-submit-btn {
+  background: #fff; color: var(--brand); border: none; border-radius: 5px;
+  padding: 0.55rem 1rem; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  display: flex; align-items: center; gap: 0.4rem; white-space: nowrap;
+  transition: opacity 0.15s ease;
+}
+.kd-submit-btn:hover { opacity: 0.9; }
+
+.kd-empty { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; padding: 4rem 1rem; color: var(--ink-soft); }
+.kd-empty-tall { padding-top: 6rem; }
+.kd-spin { display: inline-block; animation: kd-spin 1s linear infinite; }
+@keyframes kd-spin { to { transform: rotate(360deg); } }
+.kd-empty-card { max-width: 26rem; text-align: center; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 2.5rem 2rem; }
+.kd-empty-stamp {
+  display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; letter-spacing: 0.1em;
+  border: 1.5px solid var(--brick); color: var(--brick); padding: 0.2rem 0.6rem; border-radius: 3px; transform: rotate(-3deg); margin-bottom: 1rem;
+}
+.kd-empty-card h2 { font-family: 'Source Serif 4', serif; font-size: 1.2rem; margin: 0 0 0.6rem; }
+.kd-empty-card p { font-size: 0.87rem; color: var(--ink-soft); margin: 0 0 1.4rem; line-height: 1.5; }
+
+.kd-rail-wrap { display: flex; align-items: center; gap: 0.4rem; padding: 0.9rem 1.5rem 0.2rem; }
+.kd-rail { display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.3rem; }
+.kd-rail-nav { background: none; border: 1px solid var(--line); border-radius: 5px; padding: 0.3rem 0.5rem; color: var(--ink-soft); cursor: pointer; flex-shrink: 0; font-size: 0.9rem; }
+.kd-rail-nav:disabled { opacity: 0.3; cursor: default; }
+.kd-stamp {
+  flex-shrink: 0; font-family: 'IBM Plex Mono', monospace; background: var(--card); border: 1.5px solid var(--line);
+  border-radius: 6px; padding: 0.4rem 0.75rem; cursor: pointer; text-align: center; min-width: 3.6rem;
+  transition: border-color 0.15s ease, transform 0.1s ease;
+}
+.kd-stamp:hover { border-color: var(--brand); }
+.kd-stamp-active { border-color: var(--brand); background: var(--brand-soft); transform: translateY(-1px); }
+.kd-stamp-day { display: block; font-size: 0.95rem; font-weight: 600; }
+.kd-stamp-month { display: block; font-size: 0.62rem; color: var(--ink-soft); letter-spacing: 0.05em; text-transform: uppercase; }
+.kd-stamp-rel { display: block; font-size: 0.58rem; color: var(--brand); font-weight: 600; margin-top: 0.15rem; white-space: nowrap; }
+
+.kd-main { max-width: 68rem; margin: 0 auto; padding: 0.5rem 1.5rem 2rem; }
+.kd-section { margin-top: 2.2rem; }
+.kd-section-head { display: flex; align-items: baseline; gap: 0.7rem; border-bottom: 1.5px solid var(--brand); padding-bottom: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.kd-section-num { font-family: 'IBM Plex Mono', monospace; color: var(--brand); font-size: 0.8rem; font-weight: 600; }
+.kd-section-head h2 { font-family: 'Source Serif 4', serif; font-size: 1.25rem; margin: 0; flex: 1; }
+.kd-section-note { font-size: 0.75rem; color: var(--ink-soft); font-family: 'IBM Plex Mono', monospace; }
+
+.kd-scope-bar { display: flex; align-items: center; justify-content: space-between; margin-top: 2.2rem; flex-wrap: wrap; gap: 0.5rem; }
+.kd-scope-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-soft); }
+.kd-scope-toggle { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.kd-scope-toggle button { background: var(--card); border: none; padding: 0.35rem 0.8rem; font-size: 0.78rem; cursor: pointer; color: var(--ink-soft); }
+.kd-scope-toggle button.active { background: var(--brand); color: #fff; }
+
+.kd-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr)); gap: 0.8rem; }
+.kd-kpi-grid-2 { grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+.kd-kpi-card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 0.9rem 1rem; }
+.kd-kpi-label { font-size: 0.72rem; color: var(--ink-soft); margin-bottom: 0.3rem; }
+.kd-kpi-val { font-family: 'IBM Plex Mono', monospace; font-size: 1.25rem; font-weight: 600; }
+.kd-kpi-mtd { font-size: 0.68rem; color: var(--ink-soft); margin-top: 0.5rem; }
+
+.kd-delta { display: inline-flex; align-items: center; gap: 0.2rem; font-size: 0.72rem; margin-top: 0.35rem; }
+.kd-delta-up { color: var(--teal); }
+.kd-delta-down { color: var(--brick); }
+.kd-delta-flat { color: var(--ink-soft); }
+
+.kd-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+@media (max-width: 45rem) { .kd-two-col { grid-template-columns: 1fr; } }
+
+.kd-h3 { font-size: 0.88rem; font-weight: 600; margin: 0 0 0.6rem; }
+.kd-h3-sub { font-weight: 400; color: var(--ink-soft); font-size: 0.75rem; margin-left: 0.4rem; }
+.kd-sub-h { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); margin: 0.6rem 0 0.3rem; }
+
+.kd-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; background: var(--card); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.kd-table th { text-align: left; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); background: #EDEFEA; padding: 0.5rem 0.6rem; }
+.kd-table td { padding: 0.45rem 0.6rem; border-top: 1px solid var(--line); }
+.kd-table tbody tr:hover { background: #F7F8F5; }
+
+.kd-movers { list-style: none; margin: 0 0 0.8rem; padding: 0; }
+.kd-movers li { display: flex; justify-content: space-between; padding: 0.35rem 0; border-bottom: 1px solid var(--line); font-size: 0.82rem; }
+.kd-up { color: var(--teal); } .kd-down { color: var(--brick); }
+
+.kd-tag { font-size: 0.68rem; font-weight: 600; padding: 0.15rem 0.45rem; border-radius: 4px; display: inline-flex; align-items: center; gap: 0.2rem; }
+.kd-tag-A { background: #E1EEE9; color: var(--teal); }
+.kd-tag-B { background: #F3E6CE; color: var(--amber); }
+.kd-tag-C { background: #F1DAD6; color: var(--brick); }
+.kd-tag-amber { background: #F3E6CE; color: var(--amber); }
+
+.kd-muted { color: var(--ink-soft); font-size: 0.82rem; }
+.kd-foot-note { font-size: 0.72rem; color: var(--ink-soft); margin-top: 0.5rem; }
+.kd-error { color: var(--brick); display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
+
+.kd-modal-overlay { position: fixed; inset: 0; background: rgba(36,27,54,0.55); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 1rem; }
+.kd-modal { background: var(--card); border-radius: 10px; max-width: 34rem; width: 100%; max-height: 85vh; overflow-y: auto; padding: 1.3rem 1.4rem; }
+.kd-modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.9rem; }
+.kd-modal-head h3 { font-family: 'Source Serif 4', serif; font-size: 1.1rem; margin: 0; }
+.kd-icon-btn { background: none; border: none; cursor: pointer; color: var(--ink-soft); padding: 0.2rem; font-size: 1.1rem; line-height: 1; }
+.kd-modal-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1rem; flex-wrap: wrap; }
+.kd-btn-ghost { background: none; border: 1px solid var(--line); border-radius: 5px; padding: 0.5rem 0.9rem; font-size: 0.82rem; cursor: pointer; color: var(--ink); }
+
+.kd-select {
+  font-family: 'IBM Plex Sans', sans-serif; font-size: 0.78rem; color: var(--ink);
+  background: var(--card); border: 1px solid var(--line); border-radius: 5px; padding: 0.3rem 0.5rem; cursor: pointer;
+}
+
+.kd-drop {
+  border: 1.5px dashed var(--line); border-radius: 8px; padding: 2.5rem 1.5rem; text-align: center; cursor: pointer;
+  color: var(--ink-soft); display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.kd-drop:hover { border-color: var(--brand); background: var(--brand-soft); }
+.kd-drop p { margin: 0; color: var(--ink); font-size: 0.9rem; }
+
+.kd-config-warning {
+  background: #F1DAD6; color: var(--brick); font-size: 0.8rem; padding: 0.6rem 1rem;
+  text-align: center; font-family: 'IBM Plex Mono', monospace;
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useCallback, useRef } = React;
+
+// =====================================================================
+// CONFIGURE THIS: paste your Apps Script Web App URL here after deploying
+// =====================================================================
+const API_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
+
+const REQUIRED_FIELDS = ['date', 'quantity', 'code', 'product_name', 'total_amount', 'profit'];
+
+// ---------- helpers: parsing the uploaded export ----------
+function normalizeRow(raw) {
+  const out = {};
+  for (const k of Object.keys(raw)) out[k.trim().toLowerCase()] = raw[k];
+  return out;
+}
+
+function normalizeDate(v) {
+  if (v === null || v === undefined || v === '') return null;
+  if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0, 10);
+  if (typeof v === 'number') {
+    try {
+      const d = XLSX.SSF.parse_date_code(v);
+      if (d && d.y) return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`;
+    } catch (e) {}
+  }
+  if (typeof v === 'string') {
+    const s = v.trim();
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    const d = new Date(s);
+    if (!isNaN(d)) return d.toISOString().slice(0, 10);
+  }
+  return null;
+}
+
+function toNum(v) { const n = Number(v); return isNaN(n) ? 0 : n; }
+
+async function parseWorkbookFile(file) {
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const json = XLSX.utils.sheet_to_json(ws, { defval: null, raw: true });
+  return json.map(normalizeRow);
+}
+
+function groupRowsByDate(rows) {
+  const groups = {};
+  for (const r of rows) {
+    const date = normalizeDate(r.date);
+    if (!date) continue;
+    if (!groups[date]) groups[date] = [];
+    groups[date].push(r);
+  }
+  return groups;
+}
+
+function buildDayObject(rowsForDate, date) {
+  const products = {};
+  const returnProducts = {};
+  let totalSales = 0, totalProfit = 0, totalQty = 0;
+  let returnValue = 0, returnQty = 0;
+  const salesCodes = new Set();
+  const returnCodes = new Set();
+  const rawRows = [];
+
+  for (const r of rowsForDate) {
+    const qty = toNum(r.quantity);
+    const amt = toNum(r.total_amount);
+    const profit = toNum(r.profit);
+    const name = (r.product_name || 'Unnamed product').toString().trim();
+    const code = String(r.code ?? '');
+
+    rawRows.push({
+      id: r.id ?? '', code, product_name: name, quantity: qty,
+      price: toNum(r.price), cost_price: toNum(r.cost_price), total_amount: amt, profit,
+    });
+
+    if (qty > 0) {
+      totalSales += amt; totalProfit += profit; totalQty += qty;
+      if (code) salesCodes.add(code);
+      if (!products[name]) products[name] = { qty: 0, sales: 0, profit: 0 };
+      products[name].qty += qty; products[name].sales += amt; products[name].profit += profit;
+    } else if (qty < 0) {
+      returnValue += Math.abs(amt); returnQty += Math.abs(qty);
+      if (code) returnCodes.add(code);
+      if (!returnProducts[name]) returnProducts[name] = { qty: 0, value: 0 };
+      returnProducts[name].qty += Math.abs(qty); returnProducts[name].value += Math.abs(amt);
+    }
+  }
+
+  const invoiceCount = salesCodes.size;
+  return {
+    date, totalSales, totalProfit, totalQty, invoiceCount,
+    avgBasket: invoiceCount ? totalSales / invoiceCount : 0,
+    avgItems: invoiceCount ? totalQty / invoiceCount : 0,
+    returnValue, returnQty, returnInvoiceCount: returnCodes.size,
+    returnPct: totalSales ? (returnValue / totalSales) * 100 : 0,
+    products, returnProducts, lineCount: rowsForDate.length, rawRows,
+  };
+}
+
+// ---------- helpers: aggregation across days ----------
+function aggregatePeriod(days) {
+  let totalSales = 0, totalProfit = 0, totalQty = 0, invoiceCount = 0, returnValue = 0, returnQty = 0;
+  for (const d of days) {
+    totalSales += d.totalSales; totalProfit += d.totalProfit; totalQty += d.totalQty;
+    invoiceCount += d.invoiceCount; returnValue += d.returnValue; returnQty += d.returnQty;
+  }
+  return {
+    totalSales, totalProfit, totalQty, invoiceCount, returnValue, returnQty,
+    avgBasket: invoiceCount ? totalSales / invoiceCount : 0,
+    avgItems: invoiceCount ? totalQty / invoiceCount : 0,
+    returnPct: totalSales ? (returnValue / totalSales) * 100 : 0,
+  };
+}
+
+function mergeProducts(days) {
+  const map = {};
+  for (const d of days) for (const [name, v] of Object.entries(d.products || {})) {
+    if (!map[name]) map[name] = { qty: 0, sales: 0, profit: 0 };
+    map[name].qty += v.qty; map[name].sales += v.sales; map[name].profit += v.profit;
+  }
+  return map;
+}
+
+function classifyABC(productsMap) {
+  const arr = Object.entries(productsMap).map(([name, v]) => ({
+    name, ...v, marginPct: v.sales ? (v.profit / v.sales) * 100 : 0,
+  })).sort((a, b) => b.sales - a.sales);
+  const total = arr.reduce((s, p) => s + p.sales, 0);
+  let cum = 0;
+  return arr.map(p => {
+    cum += p.sales;
+    const cumPct = total ? (cum / total) * 100 : 0;
+    return { ...p, cumPct, cls: cumPct <= 70 ? 'A' : cumPct <= 90 ? 'B' : 'C' };
+  });
+}
+
+function computeDeadStock(lastSoldMap, asOfDate, minDays) {
+  const sel = new Date(asOfDate);
+  return Object.entries(lastSoldMap)
+    .map(([name, last]) => ({ name, last, diffDays: Math.round((sel - new Date(last)) / 86400000) }))
+    .filter(p => p.diffDays >= minDays).sort((a, b) => b.diffDays - a.diffDays);
+}
+
+function growthDecline(dayData, prevDay) {
+  if (!prevDay) return null;
+  const rows = [];
+  for (const [name, v] of Object.entries(dayData.products || {})) {
+    const prev = prevDay.products?.[name];
+    if (prev && prev.sales > 0) rows.push({ name, today: v.sales, prev: prev.sales, pct: ((v.sales - prev.sales) / prev.sales) * 100 });
+  }
+  rows.sort((a, b) => b.pct - a.pct);
+  return rows;
+}
+
+// ---------- formatting ----------
+const fmtMoney = (n) => `GH\u00A2${Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const fmtNum = (n) => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 1 });
+const fmtDate = (iso) => {
+  if (!iso) return '\u2014';
+  const [y, m, d] = iso.split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${d} ${months[parseInt(m, 10) - 1]} ${y}`;
+};
+const relativeDayLabel = (iso) => {
+  if (!iso) return '';
+  const d0 = new Date(iso + 'T00:00:00');
+  const now = new Date();
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diff = Math.round((todayMidnight - d0) / 86400000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
+  if (diff === 2) return 'Day before yesterday';
+  if (diff > 2) return `${diff} days ago`;
+  return '';
+};
+
+// ---------- API ----------
+async function apiFetch() {
+  const res = await fetch(`${API_URL}?action=fetch`);
+  if (!res.ok) throw new Error('Could not reach the backend.');
+  return res.json();
+}
+
+async function apiSubmitDay(day) {
+  const payload = {
+    action: 'submit',
+    day: {
+      date: day.date,
+      raw: day.rawRows,
+      totals: {
+        totalSales: day.totalSales, totalProfit: day.totalProfit, totalQty: day.totalQty,
+        invoiceCount: day.invoiceCount, returnValue: day.returnValue, returnQty: day.returnQty,
+        returnInvoiceCount: day.returnInvoiceCount, avgBasket: day.avgBasket, avgItems: day.avgItems,
+        returnPct: day.returnPct, lineCount: day.lineCount,
+      },
+      products: Object.entries(day.products).map(([name, v]) => ({ name, ...v })),
+      returnProducts: Object.entries(day.returnProducts).map(([name, v]) => ({ name, ...v })),
+    },
+  };
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids a CORS preflight against Apps Script
+    body: JSON.stringify(payload),
+  });
+  const json = await res.json();
+  if (json.error) throw new Error(json.error);
+  return json;
+}
+
+function buildAllDaysFromApi(data) {
+  const productsByDate = {};
+  (data.products || []).forEach(p => {
+    if (!productsByDate[p.date]) productsByDate[p.date] = {};
+    productsByDate[p.date][p.product_name] = { qty: Number(p.qty), sales: Number(p.sales), profit: Number(p.profit) };
+  });
+  const returnsByDate = {};
+  (data.returnProducts || []).forEach(p => {
+    if (!returnsByDate[p.date]) returnsByDate[p.date] = {};
+    returnsByDate[p.date][p.product_name] = { qty: Number(p.qty), value: Number(p.value) };
+  });
+  return (data.totals || []).map(t => ({
+    date: t.date,
+    totalSales: Number(t.totalSales), totalProfit: Number(t.totalProfit), totalQty: Number(t.totalQty),
+    invoiceCount: Number(t.invoiceCount), avgBasket: Number(t.avgBasket), avgItems: Number(t.avgItems),
+    returnValue: Number(t.returnValue), returnQty: Number(t.returnQty), returnInvoiceCount: Number(t.returnInvoiceCount),
+    returnPct: Number(t.returnPct), lineCount: Number(t.lineCount),
+    products: productsByDate[t.date] || {}, returnProducts: returnsByDate[t.date] || {},
+  })).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// ================= APP =================
+function App() {
+  const [allDays, setAllDays] = useState([]);
+  const [lastSoldRows, setLastSoldRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [scope, setScope] = useState('today');
+  const [showModal, setShowModal] = useState(false);
+  const [deadStockMinDays, setDeadStockMinDays] = useState(60);
+
+  const loadAll = useCallback(async () => {
+    setLoading(true); setLoadError('');
+    try {
+      const data = await apiFetch();
+      const days = buildAllDaysFromApi(data);
+      setAllDays(days);
+      setLastSoldRows(data.lastSold || []);
+      if (days.length) setSelectedDate(prev => (prev && days.find(d => d.date === prev)) ? prev : days[days.length - 1].date);
+    } catch (e) {
+      setLoadError(e.message || 'Could not load data.');
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  const idx = useMemo(() => allDays.findIndex(d => d.date === selectedDate), [allDays, selectedDate]);
+  const dayData = idx >= 0 ? allDays[idx] : null;
+  const prevDay = idx > 0 ? allDays[idx - 1] : null;
+
+  const monthDays = useMemo(() => {
+    if (!dayData) return [];
+    const ym = dayData.date.slice(0, 7);
+    return allDays.filter(d => d.date.slice(0, 7) === ym && d.date <= dayData.date);
+  }, [allDays, dayData]);
+  const mtd = useMemo(() => aggregatePeriod(monthDays), [monthDays]);
+
+  const cumDays = useMemo(() => dayData ? allDays.filter(d => d.date <= dayData.date) : [], [allDays, dayData]);
+  const cum = useMemo(() => aggregatePeriod(cumDays), [cumDays]);
+  const cumProducts = useMemo(() => mergeProducts(cumDays), [cumDays]);
+
+  const scopedProducts = scope === 'today' ? (dayData?.products || {}) : cumProducts;
+  const abc = useMemo(() => classifyABC(cumProducts), [cumProducts]);
+  const lastSoldMap = useMemo(() => {
+    const m = {};
+    lastSoldRows.forEach(r => { m[r.product_name] = String(r.lastSoldDate); });
+    return m;
+  }, [lastSoldRows]);
+  const deadStock = useMemo(() => dayData ? computeDeadStock(lastSoldMap, dayData.date, deadStockMinDays) : [], [lastSoldMap, dayData, deadStockMinDays]);
+  const growth = useMemo(() => dayData ? growthDecline(dayData, prevDay) : null, [dayData, prevDay]);
+
+  const withMargin = (obj) => Object.entries(obj).map(([name, v]) => ({ name, ...v, marginPct: v.sales ? (v.profit / v.sales) * 100 : 0 }));
+  const topSales = useMemo(() => withMargin(scopedProducts).sort((a, b) => b.sales - a.sales).slice(0, 20), [scopedProducts]);
+  const topProfit = useMemo(() => withMargin(scopedProducts).sort((a, b) => b.profit - a.profit).slice(0, 10), [scopedProducts]);
+  const marginRanked = useMemo(() => withMargin(scopedProducts).filter(p => p.sales > 0), [scopedProducts]);
+  const lowMargin = useMemo(() => [...marginRanked].sort((a, b) => a.marginPct - b.marginPct).slice(0, 10), [marginRanked]);
+  const highMargin = useMemo(() => [...marginRanked].sort((a, b) => b.marginPct - a.marginPct).slice(0, 10), [marginRanked]);
+  const returnProductsToday = useMemo(() => dayData ? Object.entries(dayData.returnProducts || {}).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.value - a.value) : [], [dayData]);
+
+  const configured = API_URL && !API_URL.includes('PASTE_YOUR');
+
+  return (
+    <div className="kd-root">
+      {!configured && <div className="kd-config-warning">API_URL is not set yet — edit index.html and paste your Apps Script Web App URL in.</div>}
+      <header className="kd-header">
+        <div className="kd-brand">
+          <span className="kd-brand-mark">K</span>
+          <div>
+            <div className="kd-brand-title">Klay Pharmacy</div>
+            <div className="kd-brand-sub">Daily Management Dashboard</div>
+          </div>
+        </div>
+        <button className="kd-submit-btn" onClick={() => setShowModal(true)}>&#8593; Submit yesterday&apos;s data</button>
+      </header>
+
+      {loading ? (
+        <div className="kd-empty"><span className="kd-spin">&#9696;</span><p>Loading ledger&hellip;</p></div>
+      ) : loadError ? (
+        <div className="kd-empty"><p className="kd-error">{loadError}</p></div>
+      ) : allDays.length === 0 ? (
+        <EmptyState onSubmit={() => setShowModal(true)} />
+      ) : (
+        <React.Fragment>
+          <DateRail allDays={allDays} selectedDate={selectedDate} onSelect={setSelectedDate} />
+          <main className="kd-main">
+            <ExecutiveSection dayData={dayData} prevDay={prevDay} mtd={mtd} />
+            <div className="kd-scope-bar">
+              <span className="kd-scope-label">Sales &amp; profit analysis</span>
+              <div className="kd-scope-toggle">
+                <button className={scope === 'today' ? 'active' : ''} onClick={() => setScope('today')}>This day</button>
+                <button className={scope === 'cumulative' ? 'active' : ''} onClick={() => setScope('cumulative')}>Cumulative</button>
+              </div>
+            </div>
+            <SalesAnalysisSection topSales={topSales} growth={growth} scope={scope} />
+            <ProfitAnalysisSection topProfit={topProfit} lowMargin={lowMargin} highMargin={highMargin} scope={scope} />
+            <CustomerBehaviourSection dayData={dayData} cum={cum} />
+            <ProductPerformanceSection abc={abc} deadStock={deadStock} asOfDate={dayData?.date} deadStockMinDays={deadStockMinDays} onDeadStockMinDaysChange={setDeadStockMinDays} />
+            <ReturnsSection dayData={dayData} cum={cum} returnProductsToday={returnProductsToday} />
+          </main>
+        </React.Fragment>
+      )}
+
+      {showModal && (
+        <SubmitModal
+          existingDates={allDays.map(d => d.date)}
+          onClose={() => setShowModal(false)}
+          onDone={async (latestDate) => { setShowModal(false); await loadAll(); if (latestDate) setSelectedDate(latestDate); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function EmptyState({ onSubmit }) {
+  return (
+    <div className="kd-empty kd-empty-tall">
+      <div className="kd-empty-card">
+        <div className="kd-empty-stamp">DAY 0</div>
+        <h2>No entries in the ledger yet</h2>
+        <p>Submit the first daily sales export to start the dashboard. Every section fills in from there, and builds up trend history the more days you add.</p>
+        <button className="kd-submit-btn" style={{background:'var(--brand)', color:'#fff'}} onClick={onSubmit}>&#8593; Submit yesterday&apos;s data</button>
+      </div>
+    </div>
+  );
+}
+
+function DateRail({ allDays, selectedDate, onSelect }) {
+  const idx = allDays.findIndex(d => d.date === selectedDate);
+  const goto = (i) => { if (i >= 0 && i < allDays.length) onSelect(allDays[i].date); };
+  return (
+    <div className="kd-rail-wrap">
+      <button className="kd-rail-nav" onClick={() => goto(idx - 1)} disabled={idx <= 0}>&#8249;</button>
+      <div className="kd-rail">
+        {allDays.map((d) => (
+          <button key={d.date} className={`kd-stamp ${d.date === selectedDate ? 'kd-stamp-active' : ''}`} onClick={() => onSelect(d.date)} title={relativeDayLabel(d.date)}>
+            <span className="kd-stamp-day">{fmtDate(d.date).split(' ')[0]}</span>
+            <span className="kd-stamp-month">{fmtDate(d.date).split(' ')[1]}</span>
+            {['Today', 'Yesterday', 'Day before yesterday'].includes(relativeDayLabel(d.date)) && <span className="kd-stamp-rel">{relativeDayLabel(d.date)}</span>}
+          </button>
+        ))}
+      </div>
+      <button className="kd-rail-nav" onClick={() => goto(idx + 1)} disabled={idx >= allDays.length - 1}>&#8250;</button>
+    </div>
+  );
+}
+
+function Delta({ value, invert }) {
+  if (value === null || value === undefined || !isFinite(value)) return <span className="kd-delta kd-delta-flat">no prior day</span>;
+  const good = invert ? value < 0 : value > 0;
+  const cls = value === 0 ? 'kd-delta-flat' : good ? 'kd-delta-up' : 'kd-delta-down';
+  return <span className={`kd-delta ${cls}`}>{value !== 0 && (value > 0 ? '\u2191' : '\u2193')} {value > 0 ? '+' : ''}{value.toFixed(1)}% vs prior day</span>;
+}
+
+function pctDelta(cur, prev) {
+  if (prev === undefined || prev === null || prev === 0) return null;
+  return ((cur - prev) / prev) * 100;
+}
+
+function SectionHead({ num, title, note }) {
+  return (
+    <div className="kd-section-head">
+      <span className="kd-section-num">{num}</span>
+      <h2>{title}</h2>
+      {note && <span className="kd-section-note">{note}</span>}
+    </div>
+  );
+}
+
+function ExecutiveSection({ dayData, prevDay, mtd }) {
+  if (!dayData) return null;
+  const kpis = [
+    { label: 'Sales value', val: fmtMoney(dayData.totalSales), delta: pctDelta(dayData.totalSales, prevDay?.totalSales), mtd: fmtMoney(mtd.totalSales) },
+    { label: 'Gross profit', val: fmtMoney(dayData.totalProfit), delta: pctDelta(dayData.totalProfit, prevDay?.totalProfit), mtd: fmtMoney(mtd.totalProfit) },
+    { label: 'Invoices', val: fmtNum(dayData.invoiceCount), delta: pctDelta(dayData.invoiceCount, prevDay?.invoiceCount), mtd: fmtNum(mtd.invoiceCount) },
+    { label: 'Avg basket value', val: fmtMoney(dayData.avgBasket), delta: pctDelta(dayData.avgBasket, prevDay?.avgBasket), mtd: fmtMoney(mtd.avgBasket) },
+    { label: 'Units sold', val: fmtNum(dayData.totalQty), delta: pctDelta(dayData.totalQty, prevDay?.totalQty), mtd: fmtNum(mtd.totalQty) },
+    { label: 'Return value (%)', val: `${fmtMoney(dayData.returnValue)} (${dayData.returnPct.toFixed(1)}%)`, delta: pctDelta(dayData.returnValue, prevDay?.returnValue), invert: true, mtd: `${fmtMoney(mtd.returnValue)} (${mtd.returnPct.toFixed(1)}%)` },
+  ];
+  return (
+    <section className="kd-section">
+      <SectionHead num="01" title="Executive dashboard" note={`${fmtDate(dayData.date)} \u00B7 ${relativeDayLabel(dayData.date)}`} />
+      <div className="kd-kpi-grid">
+        {kpis.map(k => (
+          <div className="kd-kpi-card" key={k.label}>
+            <div className="kd-kpi-label">{k.label}</div>
+            <div className="kd-kpi-val">{k.val}</div>
+            <Delta value={k.delta} invert={k.invert} />
+            <div className="kd-kpi-mtd">Month to date: {k.mtd}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ProductTable({ rows, valueKey, valueLabel, valueFmt }) {
+  if (!rows.length) return <p className="kd-muted">No data for this view yet.</p>;
+  return (
+    <table className="kd-table">
+      <thead><tr><th>#</th><th>Product</th><th>Qty</th><th>{valueLabel}</th><th>Margin</th></tr></thead>
+      <tbody>
+        {rows.map((p, i) => (
+          <tr key={p.name}>
+            <td className="kd-mono">{i + 1}</td><td>{p.name}</td>
+            <td className="kd-mono">{fmtNum(p.qty)}</td>
+            <td className="kd-mono">{valueFmt(p[valueKey])}</td>
+            <td className="kd-mono">{p.marginPct.toFixed(1)}%</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function MoversList({ rows, positive }) {
+  if (!rows.length) return <p className="kd-muted">Nothing to show.</p>;
+  return (
+    <ul className="kd-movers">
+      {rows.map(r => (
+        <li key={r.name}><span>{r.name}</span><span className={`kd-mono ${positive ? 'kd-up' : 'kd-down'}`}>{r.pct > 0 ? '+' : ''}{r.pct.toFixed(0)}%</span></li>
+      ))}
+    </ul>
+  );
+}
+
+function SalesAnalysisSection({ topSales, growth, scope }) {
+  return (
+    <section className="kd-section">
+      <SectionHead num="02" title="Sales analysis" note={scope === 'today' ? 'this day' : 'cumulative, last 6 months'} />
+      <div className="kd-two-col">
+        <div>
+          <h3 className="kd-h3">Top 20 products by sales</h3>
+          <ProductTable rows={topSales} valueKey="sales" valueLabel="Sales" valueFmt={fmtMoney} />
+        </div>
+        <div>
+          <h3 className="kd-h3">Fastest movers vs prior day</h3>
+          {!growth ? <p className="kd-muted">Needs at least one prior submitted day to compare.</p> : (
+            <React.Fragment>
+              <div className="kd-sub-h">Growing</div>
+              <MoversList rows={growth.slice(0, 5)} positive={true} />
+              <div className="kd-sub-h">Declining</div>
+              <MoversList rows={growth.slice(-5).reverse()} positive={false} />
+            </React.Fragment>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ProfitAnalysisSection({ topProfit, lowMargin, highMargin, scope }) {
+  return (
+    <section className="kd-section">
+      <SectionHead num="03" title="Profit analysis" note={scope === 'today' ? 'this day' : 'cumulative, last 6 months'} />
+      <div className="kd-two-col">
+        <div>
+          <h3 className="kd-h3">Top 10 products by profit</h3>
+          <ProductTable rows={topProfit} valueKey="profit" valueLabel="Profit" valueFmt={fmtMoney} />
+        </div>
+        <div>
+          <h3 className="kd-h3">Lowest margin products</h3>
+          <ProductTable rows={lowMargin} valueKey="sales" valueLabel="Sales" valueFmt={fmtMoney} />
+          <h3 className="kd-h3" style={{ marginTop: '1.25rem' }}>Highest margin products</h3>
+          <ProductTable rows={highMargin} valueKey="sales" valueLabel="Sales" valueFmt={fmtMoney} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CustomerBehaviourSection({ dayData, cum }) {
+  if (!dayData) return null;
+  return (
+    <section className="kd-section">
+      <SectionHead num="04" title="Customer behaviour" />
+      <div className="kd-kpi-grid kd-kpi-grid-2">
+        <div className="kd-kpi-card">
+          <div className="kd-kpi-label">Average basket value</div>
+          <div className="kd-kpi-val">{fmtMoney(dayData.avgBasket)}</div>
+          <div className="kd-kpi-mtd">Cumulative average: {fmtMoney(cum.avgBasket)}</div>
+        </div>
+        <div className="kd-kpi-card">
+          <div className="kd-kpi-label">Average items per invoice</div>
+          <div className="kd-kpi-val">{dayData.avgItems.toFixed(1)}</div>
+          <div className="kd-kpi-mtd">Cumulative average: {cum.avgItems.toFixed(1)}</div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ProductPerformanceSection({ abc, deadStock, asOfDate, deadStockMinDays, onDeadStockMinDaysChange }) {
+  const counts = { A: 0, B: 0, C: 0 };
+  abc.forEach(p => counts[p.cls]++);
+  const DEAD_STOCK_OPTIONS = [
+    { value: 60, label: '60+ days (2 months)' },
+    { value: 90, label: '90+ days (3 months)' },
+    { value: 120, label: '120+ days (4 months)' },
+    { value: 150, label: '150+ days (5 months)' },
+    { value: 180, label: '180+ days (6 months)' },
+  ];
+  return (
+    <section className="kd-section">
+      <SectionHead num="05" title="Product performance" note="cumulative, last 6 months of detail" />
+      <div className="kd-two-col">
+        <div>
+          <h3 className="kd-h3">ABC classification <span className="kd-h3-sub">A: {counts.A} &middot; B: {counts.B} &middot; C: {counts.C}</span></h3>
+          <table className="kd-table">
+            <thead><tr><th>#</th><th>Product</th><th>Sales</th><th>Cum. %</th><th>Class</th></tr></thead>
+            <tbody>
+              {abc.slice(0, 25).map((p, i) => (
+                <tr key={p.name}>
+                  <td className="kd-mono">{i + 1}</td><td>{p.name}</td>
+                  <td className="kd-mono">{fmtMoney(p.sales)}</td>
+                  <td className="kd-mono">{p.cumPct.toFixed(1)}%</td>
+                  <td><span className={`kd-tag kd-tag-${p.cls}`}>{p.cls}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="kd-foot-note">Showing top 25 of {abc.length} products. A = top ~70% of cumulative sales, B = next ~20%, C = remainder.</p>
+        </div>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '0.4rem' }}>
+            <h3 className="kd-h3">Dead stock <span className="kd-h3-sub">as of {fmtDate(asOfDate)}</span></h3>
+            <select className="kd-select" value={deadStockMinDays} onChange={e => onDeadStockMinDaysChange(Number(e.target.value))}>
+              {DEAD_STOCK_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          {!deadStock.length ? <p className="kd-muted">Nothing not sold in {deadStockMinDays}+ days. This fills in as more days of history build up, or try a lower threshold.</p> : (
+            <table className="kd-table">
+              <thead><tr><th>Product</th><th>Last sold</th><th>Days idle</th></tr></thead>
+              <tbody>
+                {deadStock.slice(0, 20).map(p => (
+                  <tr key={p.name}><td>{p.name}</td><td className="kd-mono">{fmtDate(p.last)}</td>
+                    <td><span className={`kd-tag ${p.diffDays >= 90 ? 'kd-tag-C' : p.diffDays >= 60 ? 'kd-tag-B' : 'kd-tag-amber'}`}>{p.diffDays}d</span></td></tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <p className="kd-foot-note">Based on a permanent record of each product's last sale date, so this stays accurate no matter how long ago it sold, independent of the 6-month detail retention above.</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ReturnsSection({ dayData, cum, returnProductsToday }) {
+  if (!dayData) return null;
+  return (
+    <section className="kd-section">
+      <SectionHead num="06" title="Returns and losses" />
+      <div className="kd-kpi-grid kd-kpi-grid-2">
+        <div className="kd-kpi-card">
+          <div className="kd-kpi-label">Return value</div>
+          <div className="kd-kpi-val">{fmtMoney(dayData.returnValue)}</div>
+          <div className="kd-kpi-mtd">Cumulative: {fmtMoney(cum.returnValue)} ({cum.returnPct.toFixed(1)}%)</div>
+        </div>
+        <div className="kd-kpi-card">
+          <div className="kd-kpi-label">Return rate</div>
+          <div className="kd-kpi-val">{dayData.returnPct.toFixed(1)}%</div>
+          <div className="kd-kpi-mtd">{fmtNum(dayData.returnQty)} units across {dayData.returnInvoiceCount} invoices</div>
+        </div>
+      </div>
+      <h3 className="kd-h3" style={{ marginTop: '1rem' }}>Most returned products, this day</h3>
+      {!returnProductsToday.length ? <p className="kd-muted">No returns recorded for this day.</p> : (
+        <table className="kd-table">
+          <thead><tr><th>Product</th><th>Qty returned</th><th>Value</th></tr></thead>
+          <tbody>
+            {returnProductsToday.slice(0, 15).map(p => (
+              <tr key={p.name}><td>{p.name}</td><td className="kd-mono">{fmtNum(p.qty)}</td><td className="kd-mono">{fmtMoney(p.value)}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
+function SubmitModal({ existingDates, onClose, onDone }) {
+  const [stage, setStage] = useState('pick');
+  const [error, setError] = useState('');
+  const [preview, setPreview] = useState([]);
+  const [saveProgress, setSaveProgress] = useState('');
+  const fileRef = useRef(null);
+
+  const handleFile = async (file) => {
+    if (!file) return;
+    setError('');
+    try {
+      const rows = await parseWorkbookFile(file);
+      if (!rows.length) throw new Error('That file has no rows.');
+      const missing = REQUIRED_FIELDS.filter(f => !(f in rows[0]));
+      if (missing.length) throw new Error(`This file is missing expected column(s): ${missing.join(', ')}. Check it's the standard sales export.`);
+      const groups = groupRowsByDate(rows);
+      const dates = Object.keys(groups).sort();
+      if (!dates.length) throw new Error('Could not find a usable date column in this file.');
+      const items = dates.map(date => ({ date, existing: existingDates.includes(date), obj: buildDayObject(groups[date], date) }));
+      setPreview(items);
+      setStage('preview');
+    } catch (e) {
+      setError(e.message || 'Could not read that file.');
+      setStage('error');
+    }
+  };
+
+  const confirmSave = async () => {
+    setStage('saving');
+    try {
+      for (const item of preview) {
+        setSaveProgress(`Saving ${fmtDate(item.date)}\u2026`);
+        await apiSubmitDay(item.obj);
+      }
+      const latest = preview.map(p => p.date).sort().slice(-1)[0];
+      onDone(latest);
+    } catch (e) {
+      setError(e.message || 'Could not save to the backend. Check the API_URL is set and the Apps Script is deployed.');
+      setStage('error');
+    }
+  };
+
+  return (
+    <div className="kd-modal-overlay" onClick={onClose}>
+      <div className="kd-modal" onClick={e => e.stopPropagation()}>
+        <div className="kd-modal-head">
+          <h3>Submit yesterday&apos;s data</h3>
+          <button className="kd-icon-btn" onClick={onClose}>&times;</button>
+        </div>
+
+        {stage === 'pick' && (
+          <div className="kd-drop" onClick={() => fileRef.current?.click()}
+            onDragOver={e => e.preventDefault()}
+            onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files?.[0]); }}>
+            <span style={{fontSize:'1.5rem'}}>&#8593;</span>
+            <p>Drop the sales export here, or click to choose the file</p>
+            <span className="kd-muted">.xlsx file exported from the system</span>
+            <input ref={fileRef} type="file" accept=".xlsx,.xls" hidden onChange={e => handleFile(e.target.files?.[0])} />
+          </div>
+        )}
+
+        {stage === 'preview' && (
+          <div>
+            <p className="kd-muted">Found {preview.length} day{preview.length > 1 ? 's' : ''} of data in this file. Review before saving.</p>
+            <table className="kd-table">
+              <thead><tr><th>Date</th><th>Lines</th><th>Sales</th><th>Invoices</th><th>Status</th></tr></thead>
+              <tbody>
+                {preview.map(p => (
+                  <tr key={p.date}>
+                    <td className="kd-mono">{fmtDate(p.date)}</td>
+                    <td className="kd-mono">{p.obj.lineCount}</td>
+                    <td className="kd-mono">{fmtMoney(p.obj.totalSales)}</td>
+                    <td className="kd-mono">{p.obj.invoiceCount}</td>
+                    <td>{p.existing ? <span className="kd-tag kd-tag-amber">will overwrite</span> : <span className="kd-tag kd-tag-A">new</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="kd-foot-note">Line-item detail is kept for 7 days then deleted automatically. Product-level detail (top products, ABC, dead stock) is kept for 6 months. Daily totals are kept permanently. This is shared: your boss and anyone else using this dashboard will see it.</p>
+            <div className="kd-modal-actions">
+              <button className="kd-btn-ghost" onClick={() => { setStage('pick'); setPreview([]); }}>Choose a different file</button>
+              <button className="kd-submit-btn" style={{background:'var(--brand)', color:'#fff'}} onClick={confirmSave}>Confirm and save</button>
+            </div>
+          </div>
+        )}
+
+        {stage === 'saving' && (
+          <div className="kd-empty"><span className="kd-spin">&#9696;</span><p>{saveProgress || 'Saving\u2026'}</p></div>
+        )}
+
+        {stage === 'error' && (
+          <div>
+            <p className="kd-error">{error}</p>
+            <div className="kd-modal-actions">
+              <button className="kd-btn-ghost" onClick={() => { setStage('pick'); setError(''); }}>Try again</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
