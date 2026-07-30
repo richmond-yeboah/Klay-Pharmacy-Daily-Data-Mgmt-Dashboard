@@ -851,13 +851,14 @@ function SubmitModal({ existingDates, onClose, onDone }) {
           <div>
             <p className="kd-muted">Found {preview.length} day{preview.length > 1 ? 's' : ''} of data in this file. Review before saving.</p>
             <table className="kd-table">
-              <thead><tr><th>Date</th><th>Lines</th><th>Sales</th><th>Invoices</th><th>Status</th></tr></thead>
+              <thead><tr><th>Date</th><th>Lines</th><th>Sales (net)</th><th>Returns</th><th>Invoices</th><th>Status</th></tr></thead>
               <tbody>
                 {preview.map(p => (
                   <tr key={p.date}>
                     <td className="kd-mono">{fmtDate(p.date)}</td>
                     <td className="kd-mono">{p.obj.lineCount}</td>
-                    <td className="kd-mono">{fmtMoney(p.obj.totalSales)}</td>
+                    <td className="kd-mono">{fmtMoney(p.obj.totalSales - p.obj.returnValue)}</td>
+                    <td className="kd-mono">{fmtMoney(p.obj.returnValue)}</td>
                     <td className="kd-mono">{p.obj.invoiceCount}</td>
                     <td>{p.existing ? <span className="kd-tag kd-tag-amber">will overwrite</span> : <span className="kd-tag kd-tag-A">new</span>}</td>
                   </tr>
