@@ -230,7 +230,7 @@ function buildDayObject(rowsForDate, date) {
   const products = {};
   const returnProducts = {};
   let totalSales = 0, totalProfit = 0, totalQty = 0;
-  let returnValue = 0, returnQty = 0;
+  let returnValue = 0, returnQty = 0, returnProfit = 0;
   const salesCodes = new Set();
   const returnCodes = new Set();
   const rawRows = [];
@@ -253,7 +253,7 @@ function buildDayObject(rowsForDate, date) {
       if (!products[name]) products[name] = { qty: 0, sales: 0, profit: 0 };
       products[name].qty += qty; products[name].sales += amt; products[name].profit += profit;
     } else if (qty < 0) {
-      returnValue += Math.abs(amt); returnQty += Math.abs(qty);
+      returnValue += Math.abs(amt); returnQty += Math.abs(qty); returnProfit += Math.abs(profit);
       if (code) returnCodes.add(code);
       if (!returnProducts[name]) returnProducts[name] = { qty: 0, value: 0 };
       returnProducts[name].qty += Math.abs(qty); returnProducts[name].value += Math.abs(amt);
@@ -265,7 +265,7 @@ function buildDayObject(rowsForDate, date) {
     date, totalSales, totalProfit, totalQty, invoiceCount,
     avgBasket: invoiceCount ? totalSales / invoiceCount : 0,
     avgItems: invoiceCount ? totalQty / invoiceCount : 0,
-    returnValue, returnQty, returnInvoiceCount: returnCodes.size,
+    returnValue, returnQty, returnProfit, returnInvoiceCount: returnCodes.size,
     returnPct: totalSales ? (returnValue / totalSales) * 100 : 0,
     products, returnProducts, lineCount: rowsForDate.length, rawRows,
   };
@@ -273,13 +273,13 @@ function buildDayObject(rowsForDate, date) {
 
 // ---------- helpers: aggregation across days ----------
 function aggregatePeriod(days) {
-  let totalSales = 0, totalProfit = 0, totalQty = 0, invoiceCount = 0, returnValue = 0, returnQty = 0;
+  let totalSales = 0, totalProfit = 0, totalQty = 0, invoiceCount = 0, returnValue = 0, returnQty = 0, returnProfit = 0;
   for (const d of days) {
     totalSales += d.totalSales; totalProfit += d.totalProfit; totalQty += d.totalQty;
-    invoiceCount += d.invoiceCount; returnValue += d.returnValue; returnQty += d.returnQty;
+    invoiceCount += d.invoiceCount; returnValue += d.returnValue; returnQty += d.returnQty; returnProfit += (d.returnProfit || 0);
   }
   return {
-    totalSales, totalProfit, totalQty, invoiceCount, returnValue, returnQty,
+    totalSales, totalProfit, totalQty, invoiceCount, returnValue, returnQty, returnProfit,
     avgBasket: invoiceCount ? totalSales / invoiceCount : 0,
     avgItems: invoiceCount ? totalQty / invoiceCount : 0,
     returnPct: totalSales ? (returnValue / totalSales) * 100 : 0,
@@ -363,7 +363,7 @@ async function apiSubmitDay(day) {
       raw: day.rawRows,
       totals: {
         totalSales: day.totalSales, totalProfit: day.totalProfit, totalQty: day.totalQty,
-        invoiceCount: day.invoiceCount, returnValue: day.returnValue, returnQty: day.returnQty,
+        invoiceCount: day.invoiceCount, returnValue: day.returnValue, returnQty: day.returnQty, returnProfit: day.returnProfit,
         returnInvoiceCount: day.returnInvoiceCount, avgBasket: day.avgBasket, avgItems: day.avgItems,
         returnPct: day.returnPct, lineCount: day.lineCount,
       },
@@ -396,7 +396,7 @@ function buildAllDaysFromApi(data) {
     date: t.date,
     totalSales: Number(t.totalSales), totalProfit: Number(t.totalProfit), totalQty: Number(t.totalQty),
     invoiceCount: Number(t.invoiceCount), avgBasket: Number(t.avgBasket), avgItems: Number(t.avgItems),
-    returnValue: Number(t.returnValue), returnQty: Number(t.returnQty), returnInvoiceCount: Number(t.returnInvoiceCount),
+    returnValue: Number(t.returnValue), returnQty: Number(t.returnQty), returnProfit: Number(t.returnProfit || 0), returnInvoiceCount: Number(t.returnInvoiceCount),
     returnPct: Number(t.returnPct), lineCount: Number(t.lineCount),
     products: productsByDate[t.date] || {}, returnProducts: returnsByDate[t.date] || {},
   })).sort((a, b) => a.date.localeCompare(b.date));
@@ -576,12 +576,18 @@ function ExecutiveSection({ dayData, prevDay, mtd }) {
   const netSales = dayData.totalSales - dayData.returnValue;
   const netSalesPrev = prevDay ? prevDay.totalSales - prevDay.returnValue : undefined;
   const netSalesMtd = mtd.totalSales - mtd.returnValue;
+  const netQty = dayData.totalQty - dayData.returnQty;
+  const netQtyPrev = prevDay ? prevDay.totalQty - prevDay.returnQty : undefined;
+  const netQtyMtd = mtd.totalQty - mtd.returnQty;
+  const netProfit = dayData.totalProfit - (dayData.returnProfit || 0);
+  const netProfitPrev = prevDay ? prevDay.totalProfit - (prevDay.returnProfit || 0) : undefined;
+  const netProfitMtd = mtd.totalProfit - (mtd.returnProfit || 0);
   const kpis = [
-    { label: 'Sales value', val: fmtMoney(netSales), delta: pctDelta(netSales, netSalesPrev), mtd: fmtMoney(netSalesMtd) },
-    { label: 'Gross profit', val: fmtMoney(dayData.totalProfit), delta: pctDelta(dayData.totalProfit, prevDay?.totalProfit), mtd: fmtMoney(mtd.totalProfit) },
+    { label: 'Sales value (net of returns)', val: fmtMoney(netSales), delta: pctDelta(netSales, netSalesPrev), mtd: fmtMoney(netSalesMtd) },
+    { label: 'Profit (net of returns)', val: fmtMoney(netProfit), delta: pctDelta(netProfit, netProfitPrev), mtd: fmtMoney(netProfitMtd) },
     { label: 'Invoices', val: fmtNum(dayData.invoiceCount), delta: pctDelta(dayData.invoiceCount, prevDay?.invoiceCount), mtd: fmtNum(mtd.invoiceCount) },
     { label: 'Avg basket value', val: fmtMoney(dayData.avgBasket), delta: pctDelta(dayData.avgBasket, prevDay?.avgBasket), mtd: fmtMoney(mtd.avgBasket) },
-    { label: 'Units sold', val: fmtNum(dayData.totalQty), delta: pctDelta(dayData.totalQty, prevDay?.totalQty), mtd: fmtNum(mtd.totalQty) },
+    { label: 'Units sold (net of returns)', val: fmtNum(netQty), delta: pctDelta(netQty, netQtyPrev), mtd: fmtNum(netQtyMtd) },
     { label: 'Return value (%)', val: `${fmtMoney(dayData.returnValue)} (${dayData.returnPct.toFixed(1)}%)`, delta: pctDelta(dayData.returnValue, prevDay?.returnValue), invert: true, mtd: `${fmtMoney(mtd.returnValue)} (${mtd.returnPct.toFixed(1)}%)` },
   ];
   return (
@@ -597,7 +603,7 @@ function ExecutiveSection({ dayData, prevDay, mtd }) {
           </div>
         ))}
       </div>
-      <p className="kd-foot-note">Sales value is net of returns. Gross sales before returns, invoice counts, average basket, and product-level figures elsewhere on this dashboard are unaffected, they're based on the original sale transactions only.</p>
+      <p className="kd-foot-note">Sales value, gross profit, and units sold are net of returns. Invoice counts, average basket, and product-level figures elsewhere on this dashboard are unaffected, they're based on the original sale transactions only.</p>
     </section>
   );
 }
@@ -606,7 +612,7 @@ function ProductTable({ rows, valueKey, valueLabel, valueFmt }) {
   if (!rows.length) return <p className="kd-muted">No data for this view yet.</p>;
   return (
     <table className="kd-table">
-      <thead><tr><th>#</th><th>Product</th><th>Qty</th><th>{valueLabel}</th><th>Margin</th></tr></thead>
+      <thead><tr><th>#</th><th>Product</th><th>Qty</th><th>{valueLabel}</th><th>Profit margin</th></tr></thead>
       <tbody>
         {rows.map((p, i) => (
           <tr key={p.name}>
@@ -667,9 +673,9 @@ function ProfitAnalysisSection({ topProfit, lowMargin, highMargin, scope }) {
           <ProductTable rows={topProfit} valueKey="profit" valueLabel="Profit" valueFmt={fmtMoney} />
         </div>
         <div>
-          <h3 className="kd-h3">Lowest margin products</h3>
+          <h3 className="kd-h3">Lowest profit margin products</h3>
           <ProductTable rows={lowMargin} valueKey="sales" valueLabel="Sales" valueFmt={fmtMoney} />
-          <h3 className="kd-h3" style={{ marginTop: '1.25rem' }}>Highest margin products</h3>
+          <h3 className="kd-h3" style={{ marginTop: '1.25rem' }}>Highest profit margin products</h3>
           <ProductTable rows={highMargin} valueKey="sales" valueLabel="Sales" valueFmt={fmtMoney} />
         </div>
       </div>
