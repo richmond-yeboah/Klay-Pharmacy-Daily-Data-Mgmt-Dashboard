@@ -175,7 +175,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 // =====================================================================
 // CONFIGURE THIS: paste your Apps Script Web App URL here after deploying
 // =====================================================================
-const API_URL = "https://script.google.com/macros/s/AKfycby2wH0JSn4oZE_25xZHIsYUPa4dt6FONiVKZqYGF3WQXiclliQgPNDVZ5crbJsv8L7lTQ/exec";
+const API_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
 
 const REQUIRED_FIELDS = ['date', 'quantity', 'code', 'product_name', 'total_amount', 'profit'];
 
@@ -573,8 +573,11 @@ function SectionHead({ num, title, note }) {
 
 function ExecutiveSection({ dayData, prevDay, mtd }) {
   if (!dayData) return null;
+  const netSales = dayData.totalSales - dayData.returnValue;
+  const netSalesPrev = prevDay ? prevDay.totalSales - prevDay.returnValue : undefined;
+  const netSalesMtd = mtd.totalSales - mtd.returnValue;
   const kpis = [
-    { label: 'Sales value', val: fmtMoney(dayData.totalSales), delta: pctDelta(dayData.totalSales, prevDay?.totalSales), mtd: fmtMoney(mtd.totalSales) },
+    { label: 'Sales value', val: fmtMoney(netSales), delta: pctDelta(netSales, netSalesPrev), mtd: fmtMoney(netSalesMtd) },
     { label: 'Gross profit', val: fmtMoney(dayData.totalProfit), delta: pctDelta(dayData.totalProfit, prevDay?.totalProfit), mtd: fmtMoney(mtd.totalProfit) },
     { label: 'Invoices', val: fmtNum(dayData.invoiceCount), delta: pctDelta(dayData.invoiceCount, prevDay?.invoiceCount), mtd: fmtNum(mtd.invoiceCount) },
     { label: 'Avg basket value', val: fmtMoney(dayData.avgBasket), delta: pctDelta(dayData.avgBasket, prevDay?.avgBasket), mtd: fmtMoney(mtd.avgBasket) },
@@ -594,6 +597,7 @@ function ExecutiveSection({ dayData, prevDay, mtd }) {
           </div>
         ))}
       </div>
+      <p className="kd-foot-note">Sales value is net of returns. Gross sales before returns, invoice counts, average basket, and product-level figures elsewhere on this dashboard are unaffected, they're based on the original sale transactions only.</p>
     </section>
   );
 }
