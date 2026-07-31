@@ -233,6 +233,7 @@ function buildDayObject(rowsForDate, date) {
   let returnValue = 0, returnQty = 0, returnProfit = 0;
   const salesCodes = new Set();
   const returnCodes = new Set();
+  const invoiceProductSets = {}; // code -> Set of distinct product names on that invoice
   const rawRows = [];
 
   for (const r of rowsForDate) {
@@ -249,7 +250,11 @@ function buildDayObject(rowsForDate, date) {
 
     if (qty > 0) {
       totalSales += amt; totalProfit += profit; totalQty += qty;
-      if (code) salesCodes.add(code);
+      if (code) {
+        salesCodes.add(code);
+        if (!invoiceProductSets[code]) invoiceProductSets[code] = new Set();
+        invoiceProductSets[code].add(name);
+      }
       if (!products[name]) products[name] = { qty: 0, sales: 0, profit: 0 };
       products[name].qty += qty; products[name].sales += amt; products[name].profit += profit;
     } else if (qty < 0) {
@@ -261,10 +266,13 @@ function buildDayObject(rowsForDate, date) {
   }
 
   const invoiceCount = salesCodes.size;
+  const invoiceItemCounts = Object.values(invoiceProductSets).map(s => s.size);
+  const totalDistinctItems = invoiceItemCounts.reduce((s, n) => s + n, 0);
   return {
     date, totalSales, totalProfit, totalQty, invoiceCount,
     avgBasket: invoiceCount ? totalSales / invoiceCount : 0,
-    avgItems: invoiceCount ? totalQty / invoiceCount : 0,
+    avgItems: invoiceCount ? totalDistinctItems / invoiceCount : 0,
+    totalDistinctItems,
     returnValue, returnQty, returnProfit, returnInvoiceCount: returnCodes.size,
     returnPct: totalSales ? (returnValue / totalSales) * 100 : 0,
     products, returnProducts, lineCount: rowsForDate.length, rawRows,
@@ -273,15 +281,16 @@ function buildDayObject(rowsForDate, date) {
 
 // ---------- helpers: aggregation across days ----------
 function aggregatePeriod(days) {
-  let totalSales = 0, totalProfit = 0, totalQty = 0, invoiceCount = 0, returnValue = 0, returnQty = 0, returnProfit = 0;
+  let totalSales = 0, totalProfit = 0, totalQty = 0, invoiceCount = 0, returnValue = 0, returnQty = 0, returnProfit = 0, totalDistinctItems = 0;
   for (const d of days) {
     totalSales += d.totalSales; totalProfit += d.totalProfit; totalQty += d.totalQty;
     invoiceCount += d.invoiceCount; returnValue += d.returnValue; returnQty += d.returnQty; returnProfit += (d.returnProfit || 0);
+    totalDistinctItems += (d.totalDistinctItems || 0);
   }
   return {
     totalSales, totalProfit, totalQty, invoiceCount, returnValue, returnQty, returnProfit,
     avgBasket: invoiceCount ? totalSales / invoiceCount : 0,
-    avgItems: invoiceCount ? totalQty / invoiceCount : 0,
+    avgItems: invoiceCount ? totalDistinctItems / invoiceCount : 0,
     returnPct: totalSales ? (returnValue / totalSales) * 100 : 0,
   };
 }
@@ -364,6 +373,7 @@ async function apiSubmitDay(day) {
       totals: {
         totalSales: day.totalSales, totalProfit: day.totalProfit, totalQty: day.totalQty,
         invoiceCount: day.invoiceCount, returnValue: day.returnValue, returnQty: day.returnQty, returnProfit: day.returnProfit,
+        totalDistinctItems: day.totalDistinctItems,
         returnInvoiceCount: day.returnInvoiceCount, avgBasket: day.avgBasket, avgItems: day.avgItems,
         returnPct: day.returnPct, lineCount: day.lineCount,
       },
@@ -396,6 +406,7 @@ function buildAllDaysFromApi(data) {
     date: t.date,
     totalSales: Number(t.totalSales), totalProfit: Number(t.totalProfit), totalQty: Number(t.totalQty),
     invoiceCount: Number(t.invoiceCount), avgBasket: Number(t.avgBasket), avgItems: Number(t.avgItems),
+    totalDistinctItems: Number(t.totalDistinctItems || 0),
     returnValue: Number(t.returnValue), returnQty: Number(t.returnQty), returnProfit: Number(t.returnProfit || 0), returnInvoiceCount: Number(t.returnInvoiceCount),
     returnPct: Number(t.returnPct), lineCount: Number(t.lineCount),
     products: productsByDate[t.date] || {}, returnProducts: returnsByDate[t.date] || {},
@@ -586,7 +597,7 @@ function ExecutiveSection({ dayData, prevDay, mtd }) {
     { label: 'Sales value (net of returns)', val: fmtMoney(netSales), delta: pctDelta(netSales, netSalesPrev), mtd: fmtMoney(netSalesMtd) },
     { label: 'Profit (net of returns)', val: fmtMoney(netProfit), delta: pctDelta(netProfit, netProfitPrev), mtd: fmtMoney(netProfitMtd) },
     { label: 'Invoices', val: fmtNum(dayData.invoiceCount), delta: pctDelta(dayData.invoiceCount, prevDay?.invoiceCount), mtd: fmtNum(mtd.invoiceCount) },
-    { label: 'Avg basket value', val: fmtMoney(dayData.avgBasket), delta: pctDelta(dayData.avgBasket, prevDay?.avgBasket), mtd: fmtMoney(mtd.avgBasket) },
+    { label: 'Avg basket value (net of returns)', val: fmtMoney(dayData.avgBasket), delta: pctDelta(dayData.avgBasket, prevDay?.avgBasket), mtd: fmtMoney(mtd.avgBasket) },
     { label: 'Units sold (net of returns)', val: fmtNum(netQty), delta: pctDelta(netQty, netQtyPrev), mtd: fmtNum(netQtyMtd) },
     { label: 'Return value (%)', val: `${fmtMoney(dayData.returnValue)} (${dayData.returnPct.toFixed(1)}%)`, delta: pctDelta(dayData.returnValue, prevDay?.returnValue), invert: true, mtd: `${fmtMoney(mtd.returnValue)} (${mtd.returnPct.toFixed(1)}%)` },
   ];
@@ -690,12 +701,12 @@ function CustomerBehaviourSection({ dayData, cum }) {
       <SectionHead num="04" title="Customer behaviour" />
       <div className="kd-kpi-grid kd-kpi-grid-2">
         <div className="kd-kpi-card">
-          <div className="kd-kpi-label">Average basket value</div>
+          <div className="kd-kpi-label">Average basket value (net of returns)</div>
           <div className="kd-kpi-val">{fmtMoney(dayData.avgBasket)}</div>
           <div className="kd-kpi-mtd">Cumulative average: {fmtMoney(cum.avgBasket)}</div>
         </div>
         <div className="kd-kpi-card">
-          <div className="kd-kpi-label">Average items per invoice</div>
+          <div className="kd-kpi-label">Average items per invoice (net of returns)</div>
           <div className="kd-kpi-val">{dayData.avgItems.toFixed(1)}</div>
           <div className="kd-kpi-mtd">Cumulative average: {cum.avgItems.toFixed(1)}</div>
         </div>
